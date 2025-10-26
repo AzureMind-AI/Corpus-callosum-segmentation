@@ -1,0 +1,24 @@
+name: Build & Deploy
+
+on:
+  workflow_dispatch:
+
+
+jobs:
+  build:
+    runs-on: self hosted 
+
+    outputs:
+      IMAGE_TAG: ${{ steps.set-image-tag.outputs.IMAGE_TAG }}
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v3
+
+    - name: Generate Image Tag
+      id: set-image-tag
+      run: |
+        IMAGE_TAG=$(date +%Y%m%d_%H%M%S)
+        echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+        echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
+    
