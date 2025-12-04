@@ -182,10 +182,11 @@ class UNet(nn.Module):
 
 class UNet_Enhanced(nn.Module):
     """Enhanced UNet with attention, residual connections, and ASPP for better performance"""
-    def __init__(self, in_channels: int, n_classes: int, base_channels: int = 64):
+    def __init__(self, in_channels: int, n_classes: int, base_channels: int = 64, deep_supervision: bool = False):
         super(UNet_Enhanced, self).__init__()
         self.in_channels = in_channels
         self.n_classes = n_classes
+        self.deep_supervision = deep_supervision
         
         # Encoder with residual connections
         self.inc = ResidualBlock(in_channels, base_channels)
@@ -201,11 +202,11 @@ class UNet_Enhanced(nn.Module):
         )
         
         # Attention blocks
-        self.att1 = AttentionBlock(F_g=base_channels * 32, F_l=base_channels * 16, F_int=base_channels * 8)
-        self.att2 = AttentionBlock(F_g=base_channels * 16, F_l=base_channels * 8, F_int=base_channels * 4)
-        self.att3 = AttentionBlock(F_g=base_channels * 8, F_l=base_channels * 4, F_int=base_channels * 2)
-        self.att4 = AttentionBlock(F_g=base_channels * 4, F_l=base_channels * 2, F_int=base_channels)
-        self.att5 = AttentionBlock(F_g=base_channels * 2, F_l=base_channels, F_int=base_channels // 2)
+        self.att1 = AttentionBlock(F_g=base_channels * 16, F_l=base_channels * 16, F_int=base_channels * 8)
+        self.att2 = AttentionBlock(F_g=base_channels * 8, F_l=base_channels * 8, F_int=base_channels * 4)
+        self.att3 = AttentionBlock(F_g=base_channels * 4, F_l=base_channels * 4, F_int=base_channels * 2)
+        self.att4 = AttentionBlock(F_g=base_channels * 2, F_l=base_channels * 2, F_int=base_channels)
+        self.att5 = AttentionBlock(F_g=base_channels * 1, F_l=base_channels, F_int=base_channels // 2)
         
         # Decoder with residual connections
         self.up1 = nn.ConvTranspose2d(base_channels * 32, base_channels * 16, kernel_size=2, stride=2)
@@ -232,14 +233,14 @@ class UNet_Enhanced(nn.Module):
         self.dropout = nn.Dropout2d(0.1)
         self.outc = nn.Conv2d(base_channels, n_classes, kernel_size=1)
         
-    def forward(self, x: torch.Tensor, return_latent: bool = False, deep_supervision: bool = False):
+    def forward(self, x: torch.Tensor, return_latent: bool = False):
         # Encoder
         x1 = self.inc(x)          # 64
         x2 = self.down1(x1)       # 128
         x3 = self.down2(x2)       # 256
         x4 = self.down3(x3)       # 512
         x5 = self.down4(x4)       # 1024
-        
+        print(x5.size())
         # Bottleneck
         latent_space = self.bottleneck(x5)  # 2048
         if return_latent:
@@ -275,7 +276,7 @@ class UNet_Enhanced(nn.Module):
         d5 = self.dropout(d5)
         logits = self.outc(d5)
         
-        if deep_supervision and self.training:
+        if self.deep_supervision:
             # Deep supervision outputs
             ds1 = self.deep_sup1(d1)
             ds2 = self.deep_sup2(d2)
@@ -289,3 +290,4 @@ class UNet_Enhanced(nn.Module):
             return logits, ds1, ds2, ds3
         
         return logits
+

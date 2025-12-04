@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import List, Tuple, Callable, Optional 
 from torch.utils.data import Dataset, random_split, Subset
 from PIL import Image
+from sklearn.model_selection import KFold
 
 class Dataset_MRI(Dataset):
     """Dataset class for handling 4D NIfTI MRI images and their 3D labels."""
@@ -338,7 +339,7 @@ class Dataset_MRI_2D(Dataset):
         plt.show()
 
 class TrainingMonitor:
-    """Class to monitor and plot training metrics."""
+    """Class to monitor and plot training metrics with comprehensive segmentation metrics."""
     
     def __init__(self, save_dir: str = "training_plots"):
         self.save_dir = Path(save_dir)
@@ -346,39 +347,85 @@ class TrainingMonitor:
         self.metrics = {
             'train_loss': [],
             'val_loss': [],
-            'val_dice': []
+            'val_dice': [],
+            'val_jaccard': [],
+            'val_accuracy': [],
+            'val_sensitivity': [],
+            'val_specificity': [],
+            'val_hausdorff': []
         }
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     
-    def update(self, train_loss: float, val_loss: float, val_dice: float):
-        """Update metrics."""
+    def update(self, train_loss: float, val_loss: float, val_metrics: dict):
+        """Update metrics with comprehensive validation metrics."""
         self.metrics['train_loss'].append(train_loss)
         self.metrics['val_loss'].append(val_loss)
-        self.metrics['val_dice'].append(val_dice)
+        self.metrics['val_dice'].append(val_metrics.get('dice', 0.0))
+        self.metrics['val_jaccard'].append(val_metrics.get('jaccard', 0.0))
+        self.metrics['val_accuracy'].append(val_metrics.get('accuracy', 0.0))
+        self.metrics['val_sensitivity'].append(val_metrics.get('sensitivity', 0.0))
+        self.metrics['val_specificity'].append(val_metrics.get('specificity', 0.0))
+        self.metrics['val_hausdorff'].append(val_metrics.get('hausdorff', 0.0))
     
     def plot_metrics(self):
-        """Plot and save training metrics."""
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
+        """Plot and save comprehensive training metrics."""
+        fig, axes = plt.subplots(2, 3, figsize=(18, 12))
         
         # Plot losses
-        ax1.plot(self.metrics['train_loss'], label='Train Loss')
-        ax1.plot(self.metrics['val_loss'], label='Val Loss')
-        ax1.set_xlabel('Epoch')
-        ax1.set_ylabel('Loss')
-        ax1.set_title('Training and Validation Loss')
-        ax1.legend()
-        ax1.grid(True)
+        axes[0, 0].plot(self.metrics['train_loss'], label='Train Loss', color='blue')
+        axes[0, 0].plot(self.metrics['val_loss'], label='Val Loss', color='red')
+        axes[0, 0].set_xlabel('Epoch')
+        axes[0, 0].set_ylabel('Loss')
+        axes[0, 0].set_title('Training and Validation Loss')
+        axes[0, 0].legend()
+        axes[0, 0].grid(True)
         
-        # Plot dice score
-        ax2.plot(self.metrics['val_dice'], label='Val Dice Score', color='green')
-        ax2.set_xlabel('Epoch')
-        ax2.set_ylabel('Dice Score')
-        ax2.set_title('Validation Dice Score')
-        ax2.legend()
-        ax2.grid(True)
+        # Plot Dice and Jaccard scores
+        axes[0, 1].plot(self.metrics['val_dice'], label='Dice Score', color='green')
+        axes[0, 1].plot(self.metrics['val_jaccard'], label='Jaccard Score', color='orange')
+        axes[0, 1].set_xlabel('Epoch')
+        axes[0, 1].set_ylabel('Score')
+        axes[0, 1].set_title('Dice and Jaccard Scores')
+        axes[0, 1].legend()
+        axes[0, 1].grid(True)
+        
+        # Plot accuracy
+        axes[0, 2].plot(self.metrics['val_accuracy'], label='Accuracy', color='purple')
+        axes[0, 2].set_xlabel('Epoch')
+        axes[0, 2].set_ylabel('Accuracy')
+        axes[0, 2].set_title('Validation Accuracy')
+        axes[0, 2].legend()
+        axes[0, 2].grid(True)
+        
+        # Plot sensitivity and specificity
+        axes[1, 0].plot(self.metrics['val_sensitivity'], label='Sensitivity', color='cyan')
+        axes[1, 0].plot(self.metrics['val_specificity'], label='Specificity', color='magenta')
+        axes[1, 0].set_xlabel('Epoch')
+        axes[1, 0].set_ylabel('Score')
+        axes[1, 0].set_title('Sensitivity and Specificity')
+        axes[1, 0].legend()
+        axes[1, 0].grid(True)
+        
+        # Plot Hausdorff distance
+        axes[1, 1].plot(self.metrics['val_hausdorff'], label='Hausdorff Distance', color='brown')
+        axes[1, 1].set_xlabel('Epoch')
+        axes[1, 1].set_ylabel('Distance')
+        axes[1, 1].set_title('Hausdorff Distance')
+        axes[1, 1].legend()
+        axes[1, 1].grid(True)
+        
+        # Summary plot with key metrics
+        axes[1, 2].plot(self.metrics['val_dice'], label='Dice', color='green', linewidth=2)
+        axes[1, 2].plot(self.metrics['val_jaccard'], label='Jaccard', color='orange', linewidth=2)
+        axes[1, 2].plot(self.metrics['val_accuracy'], label='Accuracy', color='purple', linewidth=2)
+        axes[1, 2].set_xlabel('Epoch')
+        axes[1, 2].set_ylabel('Score')
+        axes[1, 2].set_title('Key Metrics Summary')
+        axes[1, 2].legend()
+        axes[1, 2].grid(True)
         
         plt.tight_layout()
-        plt.savefig(self.save_dir / f'training_metrics_{self.timestamp}.png')
+        plt.savefig(self.save_dir / f'training_metrics_{self.timestamp}.png', dpi=300, bbox_inches='tight')
         plt.close()
     
     def save_metrics(self):
@@ -386,4 +433,172 @@ class TrainingMonitor:
         import pandas as pd
         df = pd.DataFrame(self.metrics)
         df.to_csv(self.save_dir / f'training_metrics_{self.timestamp}.csv', index=False)
+    
+    def get_best_metrics(self):
+        """Get best validation metrics across all epochs."""
+        best_metrics = {}
+        if self.metrics['val_dice']:
+            best_metrics['best_dice'] = max(self.metrics['val_dice'])
+            best_metrics['best_jaccard'] = max(self.metrics['val_jaccard'])
+            best_metrics['best_accuracy'] = max(self.metrics['val_accuracy'])
+            best_metrics['best_sensitivity'] = max(self.metrics['val_sensitivity'])
+            best_metrics['best_specificity'] = max(self.metrics['val_specificity'])
+            # For Hausdorff distance, lower is better
+            hausdorff_values = [h for h in self.metrics['val_hausdorff'] if not (np.isnan(h) or np.isinf(h))]
+            if hausdorff_values:
+                best_metrics['best_hausdorff'] = min(hausdorff_values)
+            else:
+                best_metrics['best_hausdorff'] = float('inf')
+        return best_metrics
+
+class Dataset_MRI_2D_Fold(Dataset):
+    """
+    Dataset class for k-fold cross-validation that combines train and test directories
+    and provides functionality to get different folds for training and testing.
+    """
+    def __init__(self, train_image_dir: str, train_label_dir: str,
+                 test_image_dir: str, test_label_dir: str,
+                 image_transform: Optional[Callable] = None, 
+                 mask_transform: Optional[Callable] = None,
+                 k_folds: int = 10,
+                 verbose: bool = False):
+        self.train_image_dir = Path(train_image_dir)
+        self.train_label_dir = Path(train_label_dir)
+        self.test_image_dir = Path(test_image_dir)
+        self.test_label_dir = Path(test_label_dir)
+        self.image_transform = image_transform
+        self.mask_transform = mask_transform
+        self.k_folds = k_folds
+        self.verbose = verbose
+
+        # Verify directories exist
+        for dir_path, name in [(self.train_image_dir, "Train image"), 
+                              (self.train_label_dir, "Train label"),
+                              (self.test_image_dir, "Test image"), 
+                              (self.test_label_dir, "Test label")]:
+            if not dir_path.exists():
+                raise ValueError(f"{name} directory does not exist: {dir_path}")
+
+        # Combine all pairs from both train and test directories
+        self.all_pairs = self._get_all_pairs()
+        if not self.all_pairs:
+            raise ValueError("No valid image-label pairs found in train or test directories.")
+        
+        if self.verbose:
+            print(f"Found {len(self.all_pairs)} total valid image-label pairs for k-fold CV.")
+        
+        # Create k-fold indices
+        self.fold_indices = self._create_kfold_indices()
+
+    def _verify_pairs_in_dir(self, image_dir: Path, label_dir: Path) -> List[Tuple[Path, Path]]:
+        """Find and verify image-label pairs in a specific directory."""
+        image_files = sorted([p for p in image_dir.glob('*') if p.suffix.lower() in ['.png', '.jpg', '.jpeg', '.tif']])
+        label_files = sorted([p for p in label_dir.glob('*') if p.suffix.lower() in ['.png', '.jpg', '.jpeg', '.tif']])
+        
+        pairs = []
+        for img_path in image_files:
+            for label_path in label_files:
+                if img_path.stem in label_path.stem:
+                    pairs.append((img_path, label_path))
+                    # if self.verbose:
+                    #     print(f"Found pair: {img_path.name} -> {label_path.name}")
+                    break
+        return pairs
+
+    def _get_all_pairs(self) -> List[Tuple[Path, Path]]:
+        """Get all image-label pairs from both train and test directories."""
+        train_pairs = self._verify_pairs_in_dir(self.train_image_dir, self.train_label_dir)
+        test_pairs = self._verify_pairs_in_dir(self.test_image_dir, self.test_label_dir)
+        all_pairs = train_pairs + test_pairs
+        if self.verbose:
+            print(f"Train pairs: {len(train_pairs)}, Test pairs: {len(test_pairs)}")
+            print(f"Total pairs: {len(all_pairs)}")
+        
+        return all_pairs
+
+    def _create_kfold_indices(self) -> List[Tuple[List[int], List[int]]]:
+        """Create k-fold train/test indices."""
+        kfold = KFold(n_splits=self.k_folds, shuffle=True, random_state=42)
+        indices = list(range(len(self.all_pairs)))
+        fold_indices = []
+        for train_idx, test_idx in kfold.split(indices):
+            fold_indices.append((train_idx.tolist(), test_idx.tolist()))
+        if self.verbose:
+            for i, (train_idx, test_idx) in enumerate(fold_indices):
+                print(f"Fold {i+1}: Train={len(train_idx)}, Test={len(test_idx)}")
+        
+        return fold_indices
+
+    def get_fold_datasets(self, fold: int) -> Tuple['Dataset_MRI_2D_Fold_Subset', 'Dataset_MRI_2D_Fold_Subset']:
+        """
+        Get train and test datasets for a specific fold.
+        
+        Args:
+            fold (int): Fold number (0-based)
+            
+        Returns:
+            Tuple of (train_dataset, test_dataset)
+        """
+        if fold >= self.k_folds or fold < 0:
+            raise ValueError(f"Fold must be between 0 and {self.k_folds-1}")
+        
+        train_indices, test_indices = self.fold_indices[fold]
+        
+        train_dataset = Dataset_MRI_2D_Fold_Subset(self, train_indices)
+        test_dataset = Dataset_MRI_2D_Fold_Subset(self, test_indices)
+        
+        return train_dataset, test_dataset
+
+    def __len__(self) -> int:
+        return len(self.all_pairs)
+
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
+        img_path, label_path = self.all_pairs[idx]
+        
+        image = Image.open(img_path).convert("L")
+        label = Image.open(label_path).convert("L")
+
+        img_array = np.array(image, dtype=np.float32) / 255.0
+        label_array = np.array(label, dtype=np.float32) / 255.0
+        
+        img_tensor = torch.from_numpy(img_array).unsqueeze(0)
+        label_tensor = torch.from_numpy(label_array).unsqueeze(0)
+        
+        if self.image_transform:
+            img_tensor = self.image_transform(img_tensor)
+        if self.mask_transform:
+            label_tensor = self.mask_transform(label_tensor)
+            
+        return img_tensor, label_tensor
+
+    def visualize_sample(self, idx: int):
+        """Visualizes a single sample from the full dataset given its index."""
+        if idx >= len(self):
+            print(f"Error: Index {idx} is out of range for the dataset (size: {len(self)}).")
+            return
+
+        img_tensor, label_tensor = self[idx]
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
+        ax1.imshow(img_tensor.squeeze().cpu().numpy(), cmap='gray')
+        ax1.set_title(f'Image (Index {idx})')
+        ax1.axis('off')
+        ax2.imshow(label_tensor.squeeze().cpu().numpy(), cmap='gray')
+        ax2.set_title(f'Label (Index {idx})')
+        ax2.axis('off')
+        plt.tight_layout()
+        plt.show()
+
+class Dataset_MRI_2D_Fold_Subset(Dataset):
+    """Subset class for k-fold cross-validation."""
+    
+    def __init__(self, parent_dataset: Dataset_MRI_2D_Fold, indices: List[int]):
+        self.parent_dataset = parent_dataset
+        self.indices = indices
+
+    def __len__(self) -> int:
+        return len(self.indices)
+
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
+        parent_idx = self.indices[idx]
+        return self.parent_dataset[parent_idx]
 
