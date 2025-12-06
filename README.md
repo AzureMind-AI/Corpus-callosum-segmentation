@@ -10,6 +10,17 @@ Our model significantly improves segmentation accuracy, outperforming existing s
 
 ---
 
+## 📺 Tutorial & Standalone Application
+We provide a standalone executable and a comprehensive video tutorial for users who wish to run the project immediately without configuring a Python environment.
+
+### 🚀 **[Download App & Tutorial (Release CC-AURA-NET-V1)](https://github.com/AzureMind-AI/Corpus-callosum-segmentation/releases/tag/CC-AURA-NET-V1)**
+> **Navigate to the "Assets" section of the release to find:**
+> * 🎥 **`AURANet_Tutorial.mp4`**: A video guide demonstrating how to use the software.
+> * 🖥️ **`AURA-Net.exe`**: A standalone Windows application to run segmentation (No coding required).
+> * 📄 **`AURANet_Tutorial.pdf`**: A step-by-step PDF guide.
+
+---
+
 ## 📢 Model Weights & Data
 We provide the official pre-trained weights and example data for immediate testing.
 
