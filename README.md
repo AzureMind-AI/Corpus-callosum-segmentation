@@ -106,9 +106,7 @@ The model was developed using data from:
 If you use this code or model in your research, please cite our paper.
 For commercial use, please request permission by contacting: **[ali.eskandarian8@gmail.com](mailto:ali.eskandarian8@gmail.com)**.
 
-
-
-```
+---
 
 ## 🤝 Acknowledgements
 
