@@ -103,15 +103,11 @@ The model was developed using data from:
 
 ## 📝 Citation
 
-If you use this code or model in your research, please cite our paper:
+If you use this code or model in your research, please cite our paper.
+For commercial use, please request permission by contacting: **[ali.eskandarian8@gmail.com](mailto:ali.eskandarian8@gmail.com)**.
 
-```bibtex
-@article{auranet2025,
-  title={AURA-Net Enables Rapid and Accurate Corpus Callosum Segmentation for Large-Scale Neuroimaging Studies},
-  author={Ali Eskandarian, Amir Sariaslani, Hamid Abrishami Moghaddam, Babak A. Ardekani, for the Alzheimer’s Disease Neuroimaging Initiative},
-  journal={IEEE Transactions on Medical Imaging (TMI)},
-  year={2025}
-}
+
+
 ```
 
 ## 🤝 Acknowledgements
